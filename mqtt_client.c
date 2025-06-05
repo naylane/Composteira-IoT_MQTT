@@ -108,6 +108,7 @@ static void pub_request_cb(__unused void *arg, err_t err);
 static const char *full_topic(MQTT_CLIENT_DATA_T *state, const char *name);
 static void control_led(MQTT_CLIENT_DATA_T *state, bool on);
 static void publish_temperature(MQTT_CLIENT_DATA_T *state);
+static void publish_humidity(MQTT_CLIENT_DATA_T *state);
 static void sub_request_cb(void *arg, err_t err);
 static void unsub_request_cb(void *arg, err_t err);
 static void sub_unsub_topics(MQTT_CLIENT_DATA_T* state, bool sub);
@@ -264,7 +265,6 @@ void le_valores() {
 
     temperatura = map_value_clamped(x_pos, XY_MIN_ADC, XY_MAX_ADC, 20, 70);  // 20 °C – 70 °C
     umidade = map_value_clamped(y_pos, XY_MIN_ADC, XY_MAX_ADC, 90, 30);      // 90% – 30%
-    //INFO_printf("DENTRO Temperatura: %d °C, Umidade: %d %%\n", temperatura, umidade);
 }
 
 
@@ -333,17 +333,31 @@ static void control_led(MQTT_CLIENT_DATA_T *state, bool on) {
 
 
 /**
- * @brief Publica a temperatura do microcontrolador no tópico "/temperature".
+ * @brief Publica a temperatura do microcontrolador no tópico "/temperatura".
  * @param state Ponteiro para os dados do cliente MQTT.
- * @note Esta função lê a temperatura do microcontrolador e publica o valor no tópico "/temperature" se houver alteração desde a última publicação.
+ * @note Esta função lê a temperatura do microcontrolador e publica o valor no tópico "/temperatura" se houver alteração desde a última publicação.
  */
 static void publish_temperature(MQTT_CLIENT_DATA_T *state) {
-    const char *temperature_key = full_topic(state, "/temperature");
+    const char *temperature_key = full_topic(state, "/temperatura");
 
     char temp_str[16];
     snprintf(temp_str, sizeof(temp_str), "%.2f", temperatura);
     INFO_printf("Publicando %s em %s\n", temp_str, temperature_key);
     mqtt_publish(state->mqtt_client_inst, temperature_key, temp_str, strlen(temp_str), MQTT_PUBLISH_QOS, MQTT_PUBLISH_RETAIN, pub_request_cb, state);
+}
+
+
+/**
+ * @brief Publica a umidade no tópico "/umidade".
+ * @param state Ponteiro para os dados do cliente MQTT.
+ */
+static void publish_humidity(MQTT_CLIENT_DATA_T *state) {
+    const char *humidity_key = full_topic(state, "/umidade");
+
+    char hum_str[16];
+    snprintf(hum_str, sizeof(hum_str), "%.2f", umidade);
+    INFO_printf("Publicando %s em %s\n", hum_str, humidity_key);
+    mqtt_publish(state->mqtt_client_inst, humidity_key, hum_str, strlen(hum_str), MQTT_PUBLISH_QOS, MQTT_PUBLISH_RETAIN, pub_request_cb, state);
 }
 
 
@@ -451,6 +465,7 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 static void temperature_worker_fn(async_context_t *context, async_at_time_worker_t *worker) {
     MQTT_CLIENT_DATA_T* state = (MQTT_CLIENT_DATA_T*)worker->user_data;
     publish_temperature(state);
+    publish_humidity(state);
     async_context_add_at_time_worker_in_ms(context, worker, TEMP_WORKER_TIME_S * 1000);
 }
 
