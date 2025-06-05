@@ -18,6 +18,9 @@
 
 #include "lib/ssd1306.h"
 #include "lib/ws2812.h"
+#include "lib/led.h"
+#include "lib/joystick.h"
+#include "lib/buzzer.h"
 
 // Definição dos pinos dos LEDs
 #define LED_PIN CYW43_WL_GPIO_LED_PIN   // GPIO do CI CYW43
