@@ -42,8 +42,4 @@ extern uint sm;
 #define MIN_UMID 50 // Limite mínimo de umidade
 #define LIM_OXIG 15 // Limite de oxigênio
 
-extern int temperatura;
-extern int umidade;
-extern int oxigenio;
-
 #endif

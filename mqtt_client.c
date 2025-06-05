@@ -90,6 +90,9 @@ typedef struct {
 #define MQTT_UNIQUE_TOPIC 0
 #endif
 
+volatile float temperatura = 39;
+volatile float umidade = 49;
+volatile int oxigenio = 20;
 uint16_t x_pos;
 uint16_t y_pos;
 
@@ -132,15 +135,12 @@ int main(void) {
     gpio_pull_up(BUTTON_B);
     gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
     
+    joystick_init();
+
     // Configura os pinos GPIO para acionamento dos LEDs da BitDogLab
     init_led(LED_RED_PIN);
     init_led(LED_BLUE_PIN);
     init_led(LED_GREEN_PIN);
-
-    // Inicializa o conversor ADC
-    adc_init();
-    adc_set_temp_sensor_enabled(true);
-    adc_select_input(4);
 
     // Cria registro com os dados do cliente
     static MQTT_CLIENT_DATA_T state;
@@ -222,25 +222,24 @@ int main(void) {
         cyw43_arch_wait_for_work_until(make_timeout_time_ms(10000));
 
         le_valores();
-        //update_display();
 
         if ((temperatura > MAX_TEMP) || (umidade > MAX_UMID) || (oxigenio < LIM_OXIG)) {
             gpio_put(LED_RED_PIN, 1);
             gpio_put(LED_GREEN_PIN, 0);
             gpio_put(LED_BLUE_PIN, 0);
-            buzzer_play(BUZZER_PIN, 2, 500, 1000);
         }
         else if ((MIN_TEMP < temperatura && temperatura < MAX_TEMP) && (MIN_UMID < umidade && umidade < MAX_UMID) && (oxigenio > LIM_OXIG)) {
             gpio_put(LED_RED_PIN, 0);
             gpio_put(LED_GREEN_PIN, 1);
             gpio_put(LED_BLUE_PIN, 0);
+            //buzzer_play(BUZZER_PIN, 1, 500, 1000);
         }
         else {
             gpio_put(LED_RED_PIN, 0);
             gpio_put(LED_GREEN_PIN, 0);
             gpio_put(LED_BLUE_PIN, 1);
         }
-        // sleep?
+        sleep_ms(1000);
     }
 
     INFO_printf("mqtt client exiting\n");
@@ -265,6 +264,7 @@ void le_valores() {
 
     temperatura = map_value_clamped(x_pos, XY_MIN_ADC, XY_MAX_ADC, 20, 70);  // 20 °C – 70 °C
     umidade = map_value_clamped(y_pos, XY_MIN_ADC, XY_MAX_ADC, 90, 30);      // 90% – 30%
+    //INFO_printf("DENTRO Temperatura: %d °C, Umidade: %d %%\n", temperatura, umidade);
 }
 
 
@@ -279,28 +279,6 @@ void gpio_irq_handler(uint gpio, uint32_t events) {
             return;
         }
     }
-}
-
-
-// Leitura de temperatura do microcotrolador
-/* References for this implementation:
- * raspberry-pi-pico-c-sdk.pdf, Section '4.1.1. hardware_adc'
- * pico-examples/adc/adc_console/adc_console.c */
-static float read_onboard_temperature(const char unit) {
-
-    /* 12-bit conversion, assume max value == ADC_VREF == 3.3 V */
-    const float conversionFactor = 3.3f / (1 << 12);
-
-    float adc = (float)adc_read() * conversionFactor;
-    float tempC = 27.0f - (adc - 0.706f) / 0.001721f;
-
-    if (unit == 'C' || unit != 'F') {
-        return tempC;
-    } else if (unit == 'F') {
-        return tempC * 9 / 5 + 32;
-    }
-
-    return -1.0f;
 }
 
 
@@ -340,15 +318,15 @@ static const char *full_topic(MQTT_CLIENT_DATA_T *state, const char *name) {
  * @note Esta função publica o estado do LED no tópico "/led/state" e também controla o LED físico na placa.
  */
 static void control_led(MQTT_CLIENT_DATA_T *state, bool on) {
-    // Publish state on /state topic and on/off led board
     const char* message = on ? "On" : "Off";
     if (on) {
         //cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-        gpio_put(LED_GREEN_PIN, 1);
+        //gpio_put(LED_GREEN_PIN, 1);
         INFO_printf("LED ON\n");
     } else {
         //cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-        gpio_put(LED_GREEN_PIN, 0);
+        //gpio_put(LED_GREEN_PIN, 0);
+        INFO_printf("LED OFF\n");
     }
     mqtt_publish(state->mqtt_client_inst, full_topic(state, "/led/state"), message, strlen(message), MQTT_PUBLISH_QOS, MQTT_PUBLISH_RETAIN, pub_request_cb, state);
 }
@@ -360,17 +338,12 @@ static void control_led(MQTT_CLIENT_DATA_T *state, bool on) {
  * @note Esta função lê a temperatura do microcontrolador e publica o valor no tópico "/temperature" se houver alteração desde a última publicação.
  */
 static void publish_temperature(MQTT_CLIENT_DATA_T *state) {
-    static float old_temperature;
     const char *temperature_key = full_topic(state, "/temperature");
-    float temperature = read_onboard_temperature(TEMPERATURE_UNITS);
-    if (temperature != old_temperature) {
-        old_temperature = temperature;
-        // Publish temperature on /temperature topic
-        char temp_str[16];
-        snprintf(temp_str, sizeof(temp_str), "%.2f", temperature);
-        INFO_printf("Publishing %s to %s\n", temp_str, temperature_key);
-        mqtt_publish(state->mqtt_client_inst, temperature_key, temp_str, strlen(temp_str), MQTT_PUBLISH_QOS, MQTT_PUBLISH_RETAIN, pub_request_cb, state);
-    }
+
+    char temp_str[16];
+    snprintf(temp_str, sizeof(temp_str), "%.2f", temperatura);
+    INFO_printf("Publicando %s em %s\n", temp_str, temperature_key);
+    mqtt_publish(state->mqtt_client_inst, temperature_key, temp_str, strlen(temp_str), MQTT_PUBLISH_QOS, MQTT_PUBLISH_RETAIN, pub_request_cb, state);
 }
 
 
@@ -437,6 +410,7 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
     state->data[len] = '\0';
 
     DEBUG_printf("Topic: %s, Message: %s\n", state->topic, state->data);
+
     if (strcmp(basic_topic, "/led") == 0)
     {
         if (lwip_stricmp((const char *)state->data, "On") == 0 || strcmp((const char *)state->data, "1") == 0)

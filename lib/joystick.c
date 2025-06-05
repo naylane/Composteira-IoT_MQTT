@@ -2,6 +2,10 @@
 
 uint32_t last_time_joy_btn = 0;
 
+/**
+ * @brief Inicializa o joystick.
+ * Configura os pinos ADC para leitura dos eixos X e Y, e o botão do joystick.
+ */
 void joystick_init() {
     adc_init();
     adc_gpio_init(JOYSTICK_X);
