@@ -90,9 +90,15 @@ typedef struct {
 #define MQTT_UNIQUE_TOPIC 0
 #endif
 
+uint16_t x_pos;
+uint16_t y_pos;
+
 //------------------------------------------------------------------------------------------------
 // Prototipos de funções
 //------------------------------------------------------------------------------------------------
+int clamp(int val, int min_val, int max_val);
+int map_value_clamped(int val, int in_min, int in_max, int out_min, int out_max);
+void le_valores();
 void gpio_irq_handler(uint gpio, uint32_t events);
 static float read_onboard_temperature(const char unit);
 static void pub_request_cb(__unused void *arg, err_t err);
@@ -125,7 +131,11 @@ int main(void) {
     gpio_set_dir(BUTTON_B, GPIO_IN);
     gpio_pull_up(BUTTON_B);
     gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
-    //gpio_set_irq_enabled(BUTTON_B, GPIO_IRQ_EDGE_FALL, true);
+    
+    // Configura os pinos GPIO para acionamento dos LEDs da BitDogLab
+    init_led(LED_RED_PIN);
+    init_led(LED_BLUE_PIN);
+    init_led(LED_GREEN_PIN);
 
     // Inicializa o conversor ADC
     adc_init();
@@ -210,10 +220,51 @@ int main(void) {
     while (!state.connect_done || mqtt_client_is_connected(state.mqtt_client_inst)) {
         cyw43_arch_poll();
         cyw43_arch_wait_for_work_until(make_timeout_time_ms(10000));
+
+        le_valores();
+        //update_display();
+
+        if ((temperatura > MAX_TEMP) || (umidade > MAX_UMID) || (oxigenio < LIM_OXIG)) {
+            gpio_put(LED_RED_PIN, 1);
+            gpio_put(LED_GREEN_PIN, 0);
+            gpio_put(LED_BLUE_PIN, 0);
+            buzzer_play(BUZZER_PIN, 2, 500, 1000);
+        }
+        else if ((MIN_TEMP < temperatura && temperatura < MAX_TEMP) && (MIN_UMID < umidade && umidade < MAX_UMID) && (oxigenio > LIM_OXIG)) {
+            gpio_put(LED_RED_PIN, 0);
+            gpio_put(LED_GREEN_PIN, 1);
+            gpio_put(LED_BLUE_PIN, 0);
+        }
+        else {
+            gpio_put(LED_RED_PIN, 0);
+            gpio_put(LED_GREEN_PIN, 0);
+            gpio_put(LED_BLUE_PIN, 1);
+        }
+        // sleep?
     }
 
     INFO_printf("mqtt client exiting\n");
     return 0;
+}
+
+
+int clamp(int val, int min_val, int max_val) {
+    if (val < min_val) return min_val;
+    if (val > max_val) return max_val;
+    return val;
+}
+
+int map_value_clamped(int val, int in_min, int in_max, int out_min, int out_max) {
+    val = clamp(val, in_min, in_max);
+    return (val - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+void le_valores() {
+    joystick_read_x(&x_pos); // Temperatura
+    joystick_read_y(&y_pos); // Umidade
+
+    temperatura = map_value_clamped(x_pos, XY_MIN_ADC, XY_MAX_ADC, 20, 70);  // 20 °C – 70 °C
+    umidade = map_value_clamped(y_pos, XY_MIN_ADC, XY_MAX_ADC, 90, 30);      // 90% – 30%
 }
 
 
