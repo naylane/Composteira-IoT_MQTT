@@ -7,13 +7,13 @@
  * Código adaptado de: [link do professor Ricardo Prates]
  */
 
-#include "setup.h"                  // Inclui o arquivo de configuração do projeto
+#include "setup.h"                     // Inclui o arquivo de configuração do projeto
 
-#define WIFI_SSID "Familia"                  // Substitua pelo nome da sua rede Wi-Fi
-#define WIFI_PASSWORD "31261112"      // Substitua pela senha da sua rede Wi-Fi
-#define MQTT_SERVER "192.168.0.103"                // Substitua pelo endereço do host - broket MQTT: Ex: 192.168.1.107
-#define MQTT_USERNAME "naylane"     // Substitua pelo nome da host MQTT - Username
-#define MQTT_PASSWORD "123"     // Substitua pelo Password da host MQTT - credencial de acesso - caso exista
+#define WIFI_SSID "SEU_SSID"           // Substitua pelo nome da sua rede Wi-Fi
+#define WIFI_PASSWORD "SUA_SENHA"      // Substitua pela senha da sua rede Wi-Fi
+#define MQTT_SERVER "ENDERECO_MQTT"    // Substitua pelo endereço do host - broket MQTT: Ex: 192.168.1.107
+#define MQTT_USERNAME "USERNAME"       // Substitua pelo nome da host MQTT - Username
+#define MQTT_PASSWORD "PASSWORD"       // Substitua pelo Password da host MQTT - credencial de acesso - caso exista
 
 // Definição da escala de temperatura
 #ifndef TEMPERATURE_UNITS
