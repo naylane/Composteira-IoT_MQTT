@@ -7,22 +7,11 @@
  * Código adaptado de: [link do professor Ricardo Prates]
  */
 
-#include "pico/stdlib.h"            // Biblioteca da Raspberry Pi Pico para funções padrão (GPIO, temporização, etc.)
-#include "pico/cyw43_arch.h"        // Biblioteca para arquitetura Wi-Fi da Pico com CYW43
-#include "pico/unique_id.h"         // Biblioteca com recursos para trabalhar com os pinos GPIO do Raspberry Pi Pico
+#include "setup.h"                  // Inclui o arquivo de configuração do projeto
 
-#include "hardware/gpio.h"          // Biblioteca de hardware de GPIO
-#include "hardware/irq.h"           // Biblioteca de hardware de interrupções
-#include "hardware/adc.h"           // Biblioteca de hardware para conversão ADC
-
-#include "lwip/apps/mqtt.h"         // Biblioteca LWIP MQTT -  fornece funções e recursos para conexão MQTT
-#include "lwip/apps/mqtt_priv.h"    // Biblioteca que fornece funções e recursos para Geração de Conexões
-#include "lwip/dns.h"               // Biblioteca que fornece funções e recursos suporte DNS:
-#include "lwip/altcp_tls.h"         // Biblioteca que fornece funções e recursos para conexões seguras usando TLS:
-
-#define WIFI_SSID "Familia-2.4G"                  // Substitua pelo nome da sua rede Wi-Fi
+#define WIFI_SSID "Familia"                  // Substitua pelo nome da sua rede Wi-Fi
 #define WIFI_PASSWORD "31261112"      // Substitua pela senha da sua rede Wi-Fi
-#define MQTT_SERVER "192.168.25.4"                // Substitua pelo endereço do host - broket MQTT: Ex: 192.168.1.107
+#define MQTT_SERVER "192.168.0.103"                // Substitua pelo endereço do host - broket MQTT: Ex: 192.168.1.107
 #define MQTT_USERNAME "naylane"     // Substitua pelo nome da host MQTT - Username
 #define MQTT_PASSWORD "123"     // Substitua pelo Password da host MQTT - credencial de acesso - caso exista
 
@@ -74,7 +63,7 @@ typedef struct {
 #endif
 
 // Temporização da coleta de temperatura - how often to measure our temperature
-#define TEMP_WORKER_TIME_S 10
+#define TEMP_WORKER_TIME_S 5
 
 // Manter o programa ativo - keep alive in seconds
 #define MQTT_KEEP_ALIVE_S 60
@@ -100,15 +89,6 @@ typedef struct {
 #ifndef MQTT_UNIQUE_TOPIC
 #define MQTT_UNIQUE_TOPIC 0
 #endif
-
-#include "pico/bootrom.h"
-#define BUTTON_A 5
-#define BUTTON_B 6                  // Botão B da placa Pico - GPIO 6
-#define BUTTON_JOY 22
-#define DEBOUNCE_TIME 300000        // Tempo para debounce em ms
-static uint32_t last_time_A = 0;    // Tempo da última interrupção do botão A
-static uint32_t last_time_B = 0;    // Tempo da última interrupção do botão B
-static uint32_t last_time_joy = 0;  // Tempo da última interrupção do botão do Joystick
 
 //------------------------------------------------------------------------------------------------
 // Prototipos de funções
@@ -248,12 +228,6 @@ void gpio_irq_handler(uint gpio, uint32_t events) {
             return;
         }
     }
-    else if (gpio == BUTTON_A) {
-        if (current_time - last_time_A > DEBOUNCE_TIME) {
-            // ...
-            return;
-        }
-    }
 }
 
 
@@ -317,11 +291,14 @@ static const char *full_topic(MQTT_CLIENT_DATA_T *state, const char *name) {
 static void control_led(MQTT_CLIENT_DATA_T *state, bool on) {
     // Publish state on /state topic and on/off led board
     const char* message = on ? "On" : "Off";
-    if (on)
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-    else
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-
+    if (on) {
+        //cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+        gpio_put(LED_GREEN_PIN, 1);
+        INFO_printf("LED ON\n");
+    } else {
+        //cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+        gpio_put(LED_GREEN_PIN, 0);
+    }
     mqtt_publish(state->mqtt_client_inst, full_topic(state, "/led/state"), message, strlen(message), MQTT_PUBLISH_QOS, MQTT_PUBLISH_RETAIN, pub_request_cb, state);
 }
 
