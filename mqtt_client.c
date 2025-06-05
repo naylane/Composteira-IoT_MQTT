@@ -106,7 +106,7 @@ void gpio_irq_handler(uint gpio, uint32_t events);
 static float read_onboard_temperature(const char unit);
 static void pub_request_cb(__unused void *arg, err_t err);
 static const char *full_topic(MQTT_CLIENT_DATA_T *state, const char *name);
-static void control_led(MQTT_CLIENT_DATA_T *state, bool on);
+static void control_buzzer(MQTT_CLIENT_DATA_T *state, bool on);
 static void publish_temperature(MQTT_CLIENT_DATA_T *state);
 static void publish_humidity(MQTT_CLIENT_DATA_T *state);
 static void sub_request_cb(void *arg, err_t err);
@@ -136,7 +136,8 @@ int main(void) {
     gpio_pull_up(BUTTON_B);
     gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
     
-    joystick_init();
+    joystick_init();                    // Inicializa o joystick
+    buzzer_setup_pwm(BUZZER_PIN, 4000); // Configura o buzzer para PWM
 
     // Configura os pinos GPIO para acionamento dos LEDs da BitDogLab
     init_led(LED_RED_PIN);
@@ -228,12 +229,12 @@ int main(void) {
             gpio_put(LED_RED_PIN, 1);
             gpio_put(LED_GREEN_PIN, 0);
             gpio_put(LED_BLUE_PIN, 0);
+            buzzer_play(BUZZER_PIN, 2, 500, 1000);
         }
         else if ((MIN_TEMP < temperatura && temperatura < MAX_TEMP) && (MIN_UMID < umidade && umidade < MAX_UMID) && (oxigenio > LIM_OXIG)) {
             gpio_put(LED_RED_PIN, 0);
             gpio_put(LED_GREEN_PIN, 1);
             gpio_put(LED_BLUE_PIN, 0);
-            //buzzer_play(BUZZER_PIN, 1, 500, 1000);
         }
         else {
             gpio_put(LED_RED_PIN, 0);
@@ -312,23 +313,20 @@ static const char *full_topic(MQTT_CLIENT_DATA_T *state, const char *name) {
 
 
 /**
- * @brief Controla o LED da placa Pico.
+ * @brief Controla o buzzer da placa Pico.
  * @param state Ponteiro para os dados do cliente MQTT.
- * @param on Indica se o LED deve ser ligado (true) ou desligado (false).
- * @note Esta função publica o estado do LED no tópico "/led/state" e também controla o LED físico na placa.
+ * @param on Indica se o buzzer deve ser ligado (true) ou desligado (false).
+ * @note Esta função publica o estado do buzzer no tópico "/buzzer/state" e também controla o buzzer físico na placa.
  */
-static void control_led(MQTT_CLIENT_DATA_T *state, bool on) {
+static void control_buzzer(MQTT_CLIENT_DATA_T *state, bool on) {
     const char* message = on ? "On" : "Off";
     if (on) {
-        //cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-        //gpio_put(LED_GREEN_PIN, 1);
         INFO_printf("LED ON\n");
+        buzzer_play(BUZZER_PIN, 1, 700, 1000);
     } else {
-        //cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-        //gpio_put(LED_GREEN_PIN, 0);
-        INFO_printf("LED OFF\n");
+        buzzer_play(BUZZER_PIN, 2, 800, 10);
     }
-    mqtt_publish(state->mqtt_client_inst, full_topic(state, "/led/state"), message, strlen(message), MQTT_PUBLISH_QOS, MQTT_PUBLISH_RETAIN, pub_request_cb, state);
+    mqtt_publish(state->mqtt_client_inst, full_topic(state, "/buzzer/state"), message, strlen(message), MQTT_PUBLISH_QOS, MQTT_PUBLISH_RETAIN, pub_request_cb, state);
 }
 
 
@@ -402,7 +400,7 @@ static void unsub_request_cb(void *arg, err_t err) {
  */
 static void sub_unsub_topics(MQTT_CLIENT_DATA_T* state, bool sub) {
     mqtt_request_cb_t cb = sub ? sub_request_cb : unsub_request_cb;
-    mqtt_sub_unsub(state->mqtt_client_inst, full_topic(state, "/led"), MQTT_SUBSCRIBE_QOS, cb, state, sub);
+    mqtt_sub_unsub(state->mqtt_client_inst, full_topic(state, "/buzzer"), MQTT_SUBSCRIBE_QOS, cb, state, sub);
     mqtt_sub_unsub(state->mqtt_client_inst, full_topic(state, "/print"), MQTT_SUBSCRIBE_QOS, cb, state, sub);
     mqtt_sub_unsub(state->mqtt_client_inst, full_topic(state, "/ping"), MQTT_SUBSCRIBE_QOS, cb, state, sub);
     mqtt_sub_unsub(state->mqtt_client_inst, full_topic(state, "/exit"), MQTT_SUBSCRIBE_QOS, cb, state, sub);
@@ -425,12 +423,12 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
 
     DEBUG_printf("Topic: %s, Message: %s\n", state->topic, state->data);
 
-    if (strcmp(basic_topic, "/led") == 0)
+    if (strcmp(basic_topic, "/buzzer") == 0)
     {
         if (lwip_stricmp((const char *)state->data, "On") == 0 || strcmp((const char *)state->data, "1") == 0)
-            control_led(state, true);
+            control_buzzer(state, true);
         else if (lwip_stricmp((const char *)state->data, "Off") == 0 || strcmp((const char *)state->data, "0") == 0)
-            control_led(state, false);
+            control_buzzer(state, false);
     } else if (strcmp(basic_topic, "/print") == 0) {
         INFO_printf("%.*s\n", len, data);
     } else if (strcmp(basic_topic, "/ping") == 0) {
